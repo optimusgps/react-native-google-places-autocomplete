@@ -289,7 +289,7 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
             // if (_isMounted === true) {
             const details = props.isNewPlacesAPI
               ? responseJSON
-              : responseJSON.result;
+              : responseJSON.results[0];
             _disableRowLoaders();
             _onBlur();
 
@@ -326,31 +326,15 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
           }
         }
       };
-
-      if (props.isNewPlacesAPI) {
-        request.open(
-          'GET',
-          `${url}/v1/places/${rowData.place_id}?` +
-            Qs.stringify({
-              key: props.query.key,
-              sessionToken,
-              fields: props.fields,
-            }),
-        );
-        setSessionToken(uuidv4());
-      } else {
-        request.open(
-          'GET',
-          `${url}/place/details/json?` +
-            Qs.stringify({
-              key: props.query.key,
-              placeid: rowData.place_id,
-              language: props.query.language,
-              ...props.GooglePlacesDetailsQuery,
-            }),
-        );
-      }
-
+      request.open(
+        'GET',
+        `${url}/geocode/json?` +
+          Qs.stringify({
+            key: props.query.key,
+            place_id: rowData.place_id,
+            language: props.query.language,
+          }),
+      );
       request.withCredentials = requestShouldUseWithCredentials();
       setRequestHeaders(request, getRequestHeaders(props.requestUrl));
 
@@ -526,7 +510,7 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
           });
       } else {
         requestUrl =
-          `${url}/place/nearbysearch/json?` +
+          `${url}/geocode/json?` +
           Qs.stringify({
             location: latitude + ',' + longitude,
             key: props.query.key,
@@ -566,18 +550,17 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
         if (request.status === 200) {
           const responseJSON = JSON.parse(request.responseText);
 
-          if (typeof responseJSON.predictions !== 'undefined') {
+          if (typeof responseJSON.results !== 'undefined'
+            && responseJSON.results.length > 0
+            && responseJSON.results[0].formatted_address != undefined)  {
             // if (_isMounted === true) {
-            const results =
-              props.nearbyPlacesAPI === 'GoogleReverseGeocoding'
-                ? _filterResultsByTypes(
-                    responseJSON.predictions,
-                    props.filterReverseGeocodingByTypes,
-                  )
-                : responseJSON.predictions;
-
-            _results = results;
-            setDataSource(buildRowsFromResults(results, text));
+              let des = responseJSON.results[0].formatted_address;
+              let obj = [{
+                description: des,
+                place_id: responseJSON.results[0].place_id
+              }];
+            _results = obj;
+            setDataSource(buildRowsFromResults(obj, text));
             // }
           }
           if (typeof responseJSON.suggestions !== 'undefined') {
@@ -606,23 +589,7 @@ export const GooglePlacesAutocomplete = forwardRef((props, ref) => {
         setStateText(props.preProcess(text));
       }
 
-      if (props.isNewPlacesAPI) {
-        const keyQueryParam = props.query.key
-          ? '?' +
-            Qs.stringify({
-              key: props.query.key,
-            })
-          : '';
-        request.open('POST', `${url}/v1/places:autocomplete${keyQueryParam}`);
-      } else {
-        request.open(
-          'GET',
-          `${url}/place/autocomplete/json?input=` +
-            encodeURIComponent(text) +
-            '&' +
-            Qs.stringify(props.query),
-        );
-      }
+      request.open('GET', `${url}/geocode/json?address=` + text + '&' + Qs.stringify(props.query));
 
       request.withCredentials = requestShouldUseWithCredentials();
       setRequestHeaders(request, getRequestHeaders(props.requestUrl));
